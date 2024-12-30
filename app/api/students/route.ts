@@ -14,11 +14,25 @@ interface StudentData {
   profilePicture: string;
 }
 
+async function withMongoDB(callback: () => Promise<NextResponse>) {
+  try {
+    await connectMongoDB();
+    return await callback();
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json(
+      { message: "Database error", error: errorMessage },
+      { status: 500 }
+    );
+  }
+}
+
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
+  return withMongoDB(async () => {
     const { id } = params;
 
     const {
@@ -40,8 +54,6 @@ export async function PUT(
       newUniqueRollNumber: string;
       newProfilePicture?: string;
     } = await request.json();
-
-    await connectMongoDB();
 
     const updateData: Partial<StudentData> = {
       firstName,
@@ -73,19 +85,11 @@ export async function PUT(
       { message: "Student details updated", student: updatedStudent },
       { status: 200 }
     );
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json(
-      { message: "Error updating student details", error: errorMessage },
-      { status: 500 }
-    );
-  }
+  });
 }
 
 export async function GET() {
-  try {
-    await connectMongoDB();
+  return withMongoDB(async () => {
     const students = await Student.find();
     if (!students || students.length === 0) {
       return NextResponse.json(
@@ -94,18 +98,11 @@ export async function GET() {
       );
     }
     return NextResponse.json({ students }, { status: 200 });
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json(
-      { message: "Error fetching students", error: errorMessage },
-      { status: 500 }
-    );
-  }
+  });
 }
 
 export async function POST(request: NextRequest) {
-  try {
+  return withMongoDB(async () => {
     const studentData: StudentData = await request.json();
 
     const {
@@ -143,8 +140,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await connectMongoDB();
-
     const newStudent = await Student.create({
       firstName,
       lastName,
@@ -160,20 +155,11 @@ export async function POST(request: NextRequest) {
       { message: "Student created", student: newStudent },
       { status: 201 }
     );
-  } catch (error) {
-    console.error("Error in POST /api/students:", error);
-    return NextResponse.json(
-      {
-        message: "Error adding student",
-        error: error instanceof Error ? error.message : "Unknown error",
-      },
-      { status: 500 }
-    );
-  }
+  });
 }
 
 export async function DELETE(request: NextRequest) {
-  try {
+  return withMongoDB(async () => {
     const id = request.nextUrl.searchParams.get("id");
     if (!id) {
       return NextResponse.json(
@@ -182,7 +168,6 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    await connectMongoDB();
     const deletedStudent = await Student.findByIdAndDelete(id);
 
     if (!deletedStudent) {
@@ -196,12 +181,5 @@ export async function DELETE(request: NextRequest) {
       { message: "Student deleted", student: deletedStudent },
       { status: 200 }
     );
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json(
-      { message: "Error deleting student", error: errorMessage },
-      { status: 500 }
-    );
-  }
+  });
 }
