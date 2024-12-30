@@ -11,7 +11,37 @@ interface StudentData {
   address: string;
   coursePursuing: string;
   uniqueRollNumber: string;
-  profilePicture: string; // Base64-encoded image
+  profilePicture: string;
+}
+
+async function DBConnection() {
+  await connectMongoDB();
+}
+
+function validateProfilePicture(profilePicture: string): boolean {
+  return /^data:image\/[a-zA-Z]+;base64,/.test(profilePicture);
+}
+
+function validateStudentData(student: Partial<StudentData>, checkPicture = true) {
+  const requiredFields = [
+    "firstName",
+    "lastName",
+    "email",
+    "mobileNumber",
+    "address",
+    "coursePursuing",
+    "uniqueRollNumber",
+  ];
+
+  for (const field of requiredFields) {
+    if (!student[field as keyof StudentData]) {
+      throw new Error(`${field} is required`);
+    }
+  }
+
+  if (checkPicture && !validateProfilePicture(student.profilePicture || "")) {
+    throw new Error("Invalid profile picture format");
+  }
 }
 
 export async function PUT(
@@ -19,9 +49,11 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { id } = params;
+    await DBConnection();
 
-    // Parse JSON body
+    const { id } = params;
+    const updatedFields = await request.json();
+
     const {
       newFirstName: firstName,
       newLastName: lastName,
@@ -30,19 +62,8 @@ export async function PUT(
       newAddress: address,
       newCoursePursuing: coursePursuing,
       newUniqueRollNumber: uniqueRollNumber,
-      newProfilePicture: profilePicture, // Optional field
-    }: {
-      newFirstName: string;
-      newLastName: string;
-      newEmail: string;
-      newMobileNumber: string;
-      newAddress: string;
-      newCoursePursuing: string;
-      newUniqueRollNumber: string;
-      newProfilePicture?: string; // Base64 string
-    } = await request.json();
-
-    await connectMongoDB();
+      newProfilePicture: profilePicture,
+    } = updatedFields;
 
     const updateData: Partial<StudentData> = {
       firstName,
@@ -52,15 +73,12 @@ export async function PUT(
       address,
       coursePursuing,
       uniqueRollNumber,
+      ...(profilePicture && { profilePicture }),
     };
 
-    if (profilePicture) {
-      updateData.profilePicture = profilePicture;
-    }
-
     const updatedStudent = await Student.findByIdAndUpdate(id, updateData, {
-      new: true, // Return the updated document
-      runValidators: true, // Validate before updating
+      new: true,
+      runValidators: true,
     });
 
     if (!updatedStudent) {
@@ -75,10 +93,8 @@ export async function PUT(
       { status: 200 }
     );
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
-      { message: "Error updating student details", error: errorMessage },
+      { message: "Error updating student", error: (error instanceof Error ? error.message : "Unknown error") },
       { status: 500 }
     );
   }
@@ -86,7 +102,8 @@ export async function PUT(
 
 export async function GET() {
   try {
-    await connectMongoDB();
+    await DBConnection();
+
     const students = await Student.find();
     if (!students || students.length === 0) {
       return NextResponse.json(
@@ -94,12 +111,11 @@ export async function GET() {
         { status: 404 }
       );
     }
+
     return NextResponse.json({ students }, { status: 200 });
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
-      { message: "Error fetching students", error: errorMessage },
+      { message: "Error fetching students", error: (error instanceof Error ? error.message : "Unknown error") },
       { status: 500 }
     );
   }
@@ -107,71 +123,20 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    // Parse JSON body
+    await DBConnection();
+
     const studentData: StudentData = await request.json();
+    validateStudentData(studentData);
 
-    const {
-      firstName,
-      lastName,
-      email,
-      mobileNumber,
-      address,
-      coursePursuing,
-      uniqueRollNumber,
-      profilePicture,
-    } = studentData;
-
-    // Validate required fields
-    if (
-      !firstName ||
-      !lastName ||
-      !email ||
-      !mobileNumber ||
-      !address ||
-      !coursePursuing ||
-      !uniqueRollNumber ||
-      !profilePicture
-    ) {
-      return NextResponse.json(
-        { message: "All fields are required, including the profile picture." },
-        { status: 400 }
-      );
-    }
-
-    // Optional: Validate the Base64 string format
-    const isBase64 = /^data:image\/[a-zA-Z]+;base64,/.test(profilePicture);
-    if (!isBase64) {
-      return NextResponse.json(
-        { message: "Invalid profile picture format." },
-        { status: 400 }
-      );
-    }
-
-    await connectMongoDB();
-
-    // Create new student
-    const newStudent = await Student.create({
-      firstName,
-      lastName,
-      email,
-      mobileNumber,
-      address,
-      coursePursuing,
-      uniqueRollNumber,
-      profilePicture, // Store Base64 string directly
-    });
+    const newStudent = await Student.create(studentData);
 
     return NextResponse.json(
       { message: "Student created", student: newStudent },
       { status: 201 }
     );
   } catch (error) {
-    console.error("Error in POST /api/students:", error);
     return NextResponse.json(
-      {
-        message: "Error adding student",
-        error: error instanceof Error ? error.message : "Unknown error",
-      },
+      { message: "Error adding student", error: (error instanceof Error ? error.message : "Unknown error") },
       { status: 500 }
     );
   }
@@ -179,6 +144,8 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    await DBConnection();
+
     const id = request.nextUrl.searchParams.get("id");
     if (!id) {
       return NextResponse.json(
@@ -187,7 +154,6 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    await connectMongoDB();
     const deletedStudent = await Student.findByIdAndDelete(id);
 
     if (!deletedStudent) {
@@ -202,10 +168,8 @@ export async function DELETE(request: NextRequest) {
       { status: 200 }
     );
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
-      { message: "Error deleting student", error: errorMessage },
+      { message: "Error deleting student", error: (error instanceof Error ? error.message : "Unknown error") },
       { status: 500 }
     );
   }

@@ -1,5 +1,7 @@
-// File: /components/StudentsList.tsx
+"use client";
 
+import { useEffect, useState } from "react";
+import DataTable, { TableColumn } from "react-data-table-component";
 import Link from "next/link";
 import RemoveBtn from "./RemoveBtn";
 import { HiPencilAlt } from "react-icons/hi";
@@ -13,87 +15,107 @@ interface Student {
   address: string;
   coursePursuing: string;
   uniqueRollNumber: string;
-  profilePicture?: string; // Base64-encoded image with data URL prefix
-}
-
-const getStudents = async (): Promise<{ students: Student[] } | undefined> => {
-  try {
-    console.log("Sending request to /api/students...");
-    const res = await fetch("http://localhost:3000/api/students", {
-      cache: "no-store",
-    });
-
-    console.log("Response status:", res.status);
-    if (!res.ok) {
-      const errorDetails = await res.text();
-      console.error("Error details:", errorDetails);
-      throw new Error(`Failed to fetch students: ${res.status} ${res.statusText}`);
-    }
-
-    const data = await res.json();
-    console.log("Fetched students successfully:", data);
-    return data;
-  } catch (error) {
-    console.error("Error loading students:", error);
-    throw error;
+    profilePicture?: string;
   }
+
+const getStudents = async (): Promise<Student[]> => {
+  const res = await fetch("http://localhost:3000/api/students", {
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    throw new Error("Failed to fetch students");
+  }
+  const data = await res.json();
+  return data.students || [];
 };
 
-export default async function StudentsList() {
-  let data;
-  try {
-    data = await getStudents();
-  } catch (error) {
-    return <div className="text-red-500">Error loading students. Please try again later.</div>;
-  }
+export default function StudentsList() {
+  const [students, setStudents] = useState<Student[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  if (!data || !data.students || data.students.length === 0) {
-    return <div className="text-gray-500">No students found.</div>;
-  }
+  useEffect(() => {
+    const fetchStudents = async () => {
+      try {
+        const data = await getStudents();
+        setStudents(data);
+      } catch {
+        setError("Error loading students. Please try again later.");
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const { students } = data;
+    fetchStudents();
+  }, []);
+
+  const columns: TableColumn<Student>[] = [
+    {
+      name: "Profile Picture",
+      cell: (row) => (
+        <img
+          src={row.profilePicture || "/placeholder.png"}
+          alt={`${row.firstName} ${row.lastName}'s profile`}
+          width={40}
+          height={40}
+          className="rounded-full object-cover"
+        />
+      ),
+      width: "80px",
+    },
+    {
+      name: "Name",
+      selector: (row) => `${row.firstName} ${row.lastName}`,
+      sortable: true,
+    },
+    {
+      name: "Email",
+      selector: (row) => row.email,
+    },
+    {
+      name: "Mobile Number",
+      selector: (row) => row.mobileNumber,
+    },
+    {
+      name: "Address",
+      selector: (row) => row.address,
+    },
+    {
+      name: "Course Pursuing",
+      selector: (row) => row.coursePursuing,
+    },
+    {
+      name: "Roll Number",
+      selector: (row) => row.uniqueRollNumber,
+    },
+    {
+      name: "Actions",
+      cell: (row) => (
+        <div className="flex gap-2">
+          <RemoveBtn id={row._id} />
+          <Link href={`/editStudent/${row._id}`}>
+            <HiPencilAlt size={24} className="text-blue-500 hover:text-blue-700" />
+          </Link>
+        </div>
+      ),
+      ignoreRowClick: true,
+      allowOverflow: true,
+    },
+  ];
+
+  if (loading) return <div>Loading...</div>;
+  if (error) return <div className="text-red-500">{error}</div>;
 
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-3xl font-bold mb-6">Students List</h1>
-      {students.map((s) => (
-        <div
-          key={s._id}
-          className="p-4 border border-slate-300 my-3 flex justify-between gap-5 items-start rounded-md shadow-sm"
-        >
-          {/* Profile Picture */}
-          <img
-            src={s.profilePicture ? s.profilePicture : "/placeholder.png"}
-            alt={`${s.firstName} ${s.lastName}'s profile`}
-            width={64}
-            height={64}
-            className="rounded-full object-cover w-16 h-16"
-            loading="lazy"
-          />
-
-          {/* Student Details */}
-          <div className="flex-1">
-            <h2 className="font-bold text-xl mb-2">
-              {s.firstName} {s.lastName}
-            </h2>
-            <div className="text-sm text-gray-700">
-              <p><strong>Email:</strong> {s.email}</p>
-              <p><strong>Mobile Number:</strong> {s.mobileNumber}</p>
-              <p><strong>Address:</strong> {s.address}</p>
-              <p><strong>Course Pursuing:</strong> {s.coursePursuing}</p>
-              <p><strong>Unique Roll Number:</strong> {s.uniqueRollNumber}</p>
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex flex-col gap-2">
-            <RemoveBtn id={s._id} />
-            <Link href={`/editStudent/${s._id}`}>
-              <HiPencilAlt size={24} className="text-blue-500 hover:text-blue-700" />
-            </Link>
-          </div>
-        </div>
-      ))}
+      <DataTable
+        columns={columns}
+        data={students}
+        pagination
+        highlightOnHover
+        responsive
+      />
     </div>
   );
 }
