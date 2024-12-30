@@ -38,7 +38,7 @@ export default async function EditStudent({ params }: EditStudentsProps) {
     address,
     coursePursuing,
     uniqueRollNumber,
-    profilePicture, // Include profile picture
+    profilePicture,
   } = data.student;
 
   return (
@@ -51,7 +51,7 @@ export default async function EditStudent({ params }: EditStudentsProps) {
       address={address}
       coursePursuing={coursePursuing}
       uniqueRollNumber={uniqueRollNumber}
-      profilePicture={profilePicture} // Pass the profile picture to the form
+      profilePicture={profilePicture}
     />
   );
 }
