@@ -11,7 +11,7 @@ interface StudentData {
   address: string;
   coursePursuing: string;
   uniqueRollNumber: string;
-  profilePicture: string; // Base64-encoded image
+  profilePicture: string;
 }
 
 export async function PUT(
@@ -21,7 +21,6 @@ export async function PUT(
   try {
     const { id } = params;
 
-    // Parse JSON body
     const {
       newFirstName: firstName,
       newLastName: lastName,
@@ -30,7 +29,7 @@ export async function PUT(
       newAddress: address,
       newCoursePursuing: coursePursuing,
       newUniqueRollNumber: uniqueRollNumber,
-      newProfilePicture: profilePicture, // Optional field
+      newProfilePicture: profilePicture,
     }: {
       newFirstName: string;
       newLastName: string;
@@ -39,7 +38,7 @@ export async function PUT(
       newAddress: string;
       newCoursePursuing: string;
       newUniqueRollNumber: string;
-      newProfilePicture?: string; // Base64 string
+      newProfilePicture?: string;
     } = await request.json();
 
     await connectMongoDB();
@@ -59,8 +58,8 @@ export async function PUT(
     }
 
     const updatedStudent = await Student.findByIdAndUpdate(id, updateData, {
-      new: true, // Return the updated document
-      runValidators: true, // Validate before updating
+      new: true,
+      runValidators: true,
     });
 
     if (!updatedStudent) {
@@ -107,7 +106,6 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    // Parse JSON body
     const studentData: StudentData = await request.json();
 
     const {
@@ -121,7 +119,6 @@ export async function POST(request: NextRequest) {
       profilePicture,
     } = studentData;
 
-    // Validate required fields
     if (
       !firstName ||
       !lastName ||
@@ -138,7 +135,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Optional: Validate the Base64 string format
     const isBase64 = /^data:image\/[a-zA-Z]+;base64,/.test(profilePicture);
     if (!isBase64) {
       return NextResponse.json(
@@ -149,7 +145,6 @@ export async function POST(request: NextRequest) {
 
     await connectMongoDB();
 
-    // Create new student
     const newStudent = await Student.create({
       firstName,
       lastName,
@@ -158,7 +153,7 @@ export async function POST(request: NextRequest) {
       address,
       coursePursuing,
       uniqueRollNumber,
-      profilePicture, // Store Base64 string directly
+      profilePicture,
     });
 
     return NextResponse.json(
